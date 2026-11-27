@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bé Học Xem Đồng Hồ</title>
+  <title>Bé Học Xem Đồng Hồ & Phát Âm</title>
   <style>
     * {
       box-sizing: border-box;
@@ -25,7 +25,7 @@
       border-radius: 24px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.1);
       text-align: center;
-      max-width: 450px;
+      max-width: 480px;
       width: 100%;
     }
     h1 {
@@ -36,53 +36,79 @@
     canvas {
       background-color: #fff;
       border-radius: 50%;
-      margin: 20px 0;
+      margin: 15px 0;
     }
-    .mic-btn {
-      background-color: #ff6b6b;
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .btn {
       color: white;
       border: none;
-      padding: 15px 25px;
-      font-size: 18px;
+      padding: 12px 20px;
+      font-size: 16px;
       font-weight: bold;
       border-radius: 50px;
       cursor: pointer;
-      box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
       transition: all 0.2s ease;
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
+      gap: 8px;
       outline: none;
     }
-    .mic-btn:hover {
-      background-color: #ff5252;
+    .btn-mic {
+      background-color: #ff6b6b;
+      box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+    }
+    .btn-mic.listening {
+      background-color: #4ecdc4;
+      animation: pulse 1.5s infinite;
+    }
+    .btn-speak {
+      background-color: #9b59b6;
+      box-shadow: 0 4px 12px rgba(155, 89, 182, 0.3);
+    }
+    .btn-toggle {
+      background-color: #3498db;
+      box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    }
+    .btn:hover {
+      opacity: 0.9;
       transform: translateY(-2px);
     }
-    .mic-btn:active {
+    .btn:active {
       transform: translateY(1px);
-    }
-    .mic-btn.listening {
-      background-color: #4ecdc4;
-      box-shadow: 0 4px 15px rgba(78, 205, 196, 0.4);
-      animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
       0% { transform: scale(1); }
-      50% { transform: scale(1.05); }
+      50% { transform: scale(1.03); }
       100% { transform: scale(1); }
     }
     .status-text {
       margin-top: 15px;
-      font-size: 16px;
+      font-size: 15px;
       color: #7f8c8d;
-      min-height: 24px;
+      min-height: 22px;
     }
     .result-text {
-      margin-top: 10px;
-      font-size: 20px;
+      margin-top: 8px;
+      font-size: 18px;
       font-weight: bold;
       color: #2ecc71;
-      min-height: 28px;
+      min-height: 26px;
+    }
+    .mode-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 13px;
+      font-weight: bold;
+      background: #e8f4f8;
+      color: #2980b9;
+      margin-bottom: 10px;
     }
   </style>
 </head>
@@ -90,30 +116,42 @@
 
   <div class="container">
     <h1>⏰ Bé Học Xem Đồng Hồ</h1>
+    <div id="modeBadge" class="mode-badge">Đang chạy giờ thực tế</div>
     
-    <canvas id="clock" width="300" height="300"></canvas>
+    <canvas id="clock" width="280" height="280"></canvas>
 
-    <div>
-      <button id="listenBtn" class="mic-btn">
+    <div class="btn-group">
+      <button id="listenBtn" class="btn btn-mic">
         🎤 Bấm vào và nói giờ nhé
+      </button>
+
+      <button id="speakBtn" class="btn btn-speak">
+        🔊 Đọc giờ trên đồng hồ
+      </button>
+
+      <button id="toggleRealtimeBtn" class="btn btn-toggle">
+        ⏸️ Tạm dừng chạy thực tế
       </button>
     </div>
 
-    <div id="status" class="status-text">Bấm nút để bắt đầu nói...</div>
+    <div id="status" class="status-text">Đồng hồ đang chạy theo giờ thực...</div>
     <div id="result" class="result-text"></div>
   </div>
 
   <script>
-    // --- 1. VẼ ĐỒNG HỒ ANALOG ---
+    // --- 1. KHỞI TẠO CANVAS & ĐỒNG HỒ ---
     const canvas = document.getElementById("clock");
     const ctx = canvas.getContext("2d");
     const radius = canvas.height / 2;
     ctx.translate(radius, radius);
 
-    let currentHour = 10;
-    let currentMinute = 10;
+    let currentHour = 0;
+    let currentMinute = 0;
+    let currentSecond = 0;
+    let isRealtime = true;
+    let lastSpokenMinute = -1;
 
-    function drawClock(hour, minute) {
+    function drawClock(hour, minute, second = 0) {
       ctx.clearRect(-radius, -radius, canvas.width, canvas.height);
       
       // Mặt đồng hồ
@@ -132,28 +170,34 @@
       ctx.fill();
 
       // Số chỉ giờ
-      ctx.font = 'bold 18px Segoe UI';
+      ctx.font = 'bold 16px Segoe UI';
       ctx.textBaseline = "middle";
       ctx.textAlign = "center";
       ctx.fillStyle = '#2c3e50';
       for (let num = 1; num <= 12; num++) {
         let ang = num * Math.PI / 6;
         ctx.rotate(ang);
-        ctx.translate(0, -radius + 35);
+        ctx.translate(0, -radius + 32);
         ctx.rotate(-ang);
         ctx.fillText(num.toString(), 0, 0);
         ctx.rotate(ang);
-        ctx.translate(0, radius - 35);
+        ctx.translate(0, radius - 32);
         ctx.rotate(-ang);
       }
 
       // Kim Giờ
-      let hourAngle = ((hour % 12) + minute / 60) * (Math.PI / 6);
-      drawHand(hourAngle, radius * 0.5, 6, '#2c3e50');
+      let hourAngle = ((hour % 12) + minute / 60 + second / 3600) * (Math.PI / 6);
+      drawHand(hourAngle, radius * 0.48, 6, '#2c3e50');
 
       // Kim Phút
-      let minuteAngle = (minute * Math.PI / 30);
-      drawHand(minuteAngle, radius * 0.7, 4, '#e74c3c');
+      let minuteAngle = (minute + second / 60) * (Math.PI / 30);
+      drawHand(minuteAngle, radius * 0.68, 4, '#e74c3c');
+
+      // Kim Giây (Chỉ vẽ khi ở chế độ Real-time)
+      if (isRealtime) {
+        let secondAngle = second * (Math.PI / 30);
+        drawHand(secondAngle, radius * 0.78, 2, '#f39c12');
+      }
     }
 
     function drawHand(pos, length, width, color) {
@@ -168,14 +212,92 @@
       ctx.rotate(-pos);
     }
 
-    // Vẽ giờ ban đầu
-    drawClock(currentHour, currentMinute);
+    // --- 2. PHÁT ÂM GIỌNG NÓI (SPEECH SYNTHESIS) ---
+    function speakTime(hour, minute) {
+      if (!('speechSynthesis' in window)) return;
 
-    // --- 2. XỬ LÝ CHUYỂN BẰNG TỪ NGỮ THÀNH SỐ ---
+      window.speechSynthesis.cancel(); // Dừng phát âm cũ nếu đang phát
+
+      let h = hour % 12;
+      if (h === 0) h = 12;
+
+      let text = `Bây giờ là ${h} giờ`;
+      if (minute === 0) {
+        text += " đúng";
+      } else if (minute === 30) {
+        text += " rưỡi";
+      } else {
+        text += ` ${minute} phút`;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'vi-VN';
+      utterance.rate = 0.85; // Đọc chậm một chút cho bé dễ nghe
+
+      // Chọn voice tiếng Việt nếu trình duyệt hỗ trợ
+      const voices = window.speechSynthesis.getVoices();
+      const viVoice = voices.find(v => v.lang.includes('vi') || v.lang.includes('VI'));
+      if (viVoice) utterance.voice = viVoice;
+
+      window.speechSynthesis.speak(utterance);
+    }
+
+    // --- 3. VÒNG LẶP REAL-TIME ---
+    function updateRealtimeClock() {
+      if (!isRealtime) return;
+
+      const now = new Date();
+      currentHour = now.getHours();
+      currentMinute = now.getMinutes();
+      currentSecond = now.getSeconds();
+
+      drawClock(currentHour, currentMinute, currentSecond);
+
+      // Đọc giờ tự động mỗi khi sang phút mới
+      if (currentMinute !== lastSpokenMinute && currentSecond === 0) {
+        lastSpokenMinute = currentMinute;
+        speakTime(currentHour, currentMinute);
+        document.getElementById('result').innerText = `✨ Bây giờ là: ${currentHour % 12 || 12} giờ ${currentMinute} phút`;
+      }
+    }
+
+    setInterval(updateRealtimeClock, 1000);
+
+    // --- 4. XỬ LÝ NÚT BẤM & ĐỔI CHẾ ĐỘ ---
+    const toggleBtn = document.getElementById('toggleRealtimeBtn');
+    const modeBadge = document.getElementById('modeBadge');
+    const statusText = document.getElementById('status');
+    const resultText = document.getElementById('result');
+
+    toggleBtn.addEventListener('click', () => {
+      isRealtime = !isRealtime;
+      if (isRealtime) {
+        toggleBtn.innerText = "⏸️ Tạm dừng chạy thực tế";
+        modeBadge.innerText = "Đang chạy giờ thực tế";
+        modeBadge.style.background = "#e8f4f8";
+        modeBadge.style.color = "#2980b9";
+        statusText.innerText = "Đồng hồ đang chạy theo giờ thực...";
+        lastSpokenMinute = -1; // Reset để có thể đọc ngay khi đúng phút
+      } else {
+        toggleBtn.innerText = "▶️ Bật chạy giờ thực tế";
+        modeBadge.innerText = "Chế độ luyện tập / Đặt giờ";
+        modeBadge.style.background = "#fef9e7";
+        modeBadge.style.color = "#f39c12";
+        statusText.innerText = "Bé hãy nói giờ để xoay kim đồng hồ!";
+      }
+    });
+
+    document.getElementById('speakBtn').addEventListener('click', () => {
+      speakTime(currentHour, currentMinute);
+      let displayH = currentHour % 12 || 12;
+      resultText.innerText = `🔊 Đã đọc: ${displayH} giờ ${currentMinute} phút`;
+    });
+
+    // --- 5. XỬ LÝ NHẬN DẠNG GIỌNG NÓI ---
     const textToNumMap = {
       "không": 0, "mốt": 1, "một": 1, "hai": 2, "ba": 3, "bốn": 4, "tư": 4, 
       "năm": 5, "lăm": 5, "sáu": 6, "bảy": 7, "tám": 8, "chín": 9, "mười": 10,
-      "chục": 10, "rưỡi": 30, "kém": -1
+      "chục": 10, "rưỡi": 30
     };
 
     function wordsToNumber(str) {
@@ -206,28 +328,20 @@
       let hour = null;
       let minute = 0;
 
-      // Xử lý trường hợp có "rưỡi"
-      if (text.includes("rưỡi")) {
-        minute = 30;
-      }
+      if (text.includes("rưỡi")) minute = 30;
 
-      // Tìm phần "giờ"
       const hourMatch = text.match(/(.*?)\s*giờ/);
       if (hourMatch) {
         let hourStr = hourMatch[1].trim();
-        // Lấy từ cuối cùng hoặc số trước chữ giờ
         let hourWords = hourStr.split(" ").slice(-2).join(" ");
         hour = wordsToNumber(hourWords);
       }
 
-      // Tìm phần "phút" (nếu không có "rưỡi")
       if (!text.includes("rưỡi")) {
         const minuteMatch = text.match(/giờ\s*(.*?)(?:\s*phút|$)/);
         if (minuteMatch && minuteMatch[1]) {
           let minStr = minuteMatch[1].trim();
-          if (minStr) {
-            minute = wordsToNumber(minStr);
-          }
+          if (minStr) minute = wordsToNumber(minStr);
         }
       }
 
@@ -237,35 +351,23 @@
       return null;
     }
 
-    // --- 3. NHẬN DẠNG GIỌNG NÓI (SPEECH RECOGNITION) ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-    if (!SpeechRecognition) {
-      document.getElementById('status').innerText = "Trình duyệt không hỗ trợ nhận dạng giọng nói. Hãy dùng Google Chrome!";
-      document.getElementById('listenBtn').disabled = true;
-    } else {
+    if (SpeechRecognition) {
       const recognition = new SpeechRecognition();
       recognition.lang = 'vi-VN';
       recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
 
       const listenBtn = document.getElementById('listenBtn');
-      const status = document.getElementById('status');
-      const result = document.getElementById('result');
 
       listenBtn.addEventListener('click', () => {
-        try {
-          recognition.start();
-        } catch (e) {
-          recognition.stop();
-        }
+        try { recognition.start(); } catch (e) { recognition.stop(); }
       });
 
       recognition.onstart = () => {
         listenBtn.classList.add('listening');
         listenBtn.innerHTML = "🎙️ Đang nghe bé nói...";
-        status.innerText = "Bé hãy nói rõ câu giờ nhé (VD: Hai giờ mười tám phút)";
-        result.innerText = "";
+        statusText.innerText = "Bé nói rõ câu giờ nhé (Ví dụ: Mười giờ mười lăm phút)";
       };
 
       recognition.onend = () => {
@@ -275,24 +377,35 @@
 
       recognition.onresult = (event) => {
         const speechResult = event.results[0][0].transcript;
-        status.innerText = `Bé vừa nói: "${speechResult}"`;
+        statusText.innerText = `Bé vừa nói: "${speechResult}"`;
 
         const parsedTime = parseTimeSpeech(speechResult);
 
         if (parsedTime) {
+          // Tự động chuyển sang chế độ thủ công khi bé nói giờ
+          if (isRealtime) {
+            isRealtime = false;
+            toggleBtn.innerText = "▶️ Bật chạy giờ thực tế";
+            modeBadge.innerText = "Chế độ luyện tập / Đặt giờ";
+            modeBadge.style.background = "#fef9e7";
+            modeBadge.style.color = "#f39c12";
+          }
+
           currentHour = parsedTime.hour;
           currentMinute = parsedTime.minute;
+          currentSecond = 0;
+
+          drawClock(currentHour, currentMinute, 0);
+          resultText.innerText = `✨ Đồng hồ đã chỉnh: ${currentHour} giờ ${currentMinute} phút`;
           
-          drawClock(currentHour, currentMinute);
-          result.innerText = `✨ Đồng hồ chỉ: ${currentHour} giờ ${currentMinute} phút`;
+          // Đọc lại để xác nhận cho bé nghe
+          speakTime(currentHour, currentMinute);
         } else {
-          result.innerText = "⚠️ Chưa nghe rõ giờ. Bé thử nói lại nhé!";
+          resultText.innerText = "⚠️ Chưa nghe rõ giờ. Bé thử nói lại nhé!";
         }
       };
-
-      recognition.onerror = (event) => {
-        status.innerText = "Chưa nhận diện được. Bé bấm nút và nói lại nhé!";
-      };
+    } else {
+      statusText.innerText = "Trình duyệt không hỗ trợ nhận dạng giọng nói. Hãy dùng Google Chrome!";
     }
   </script>
 
