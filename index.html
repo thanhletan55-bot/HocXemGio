@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+-<!DOCTYPE html>
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
@@ -212,6 +212,7 @@
       ctx.rotate(-pos);
     }
 
+
     // --- 2. PHÁT ÂM GIỌNG NÓI (SPEECH SYNTHESIS) ---
     function speakTime(hour, minute) {
       if (!('speechSynthesis' in window)) return;
@@ -242,6 +243,7 @@
       window.speechSynthesis.speak(utterance);
     }
 
+
     // --- 3. VÒNG LẶP REAL-TIME ---
     function updateRealtimeClock() {
       if (!isRealtime) return;
@@ -260,6 +262,7 @@
         document.getElementById('result').innerText = `✨ Bây giờ là: ${currentHour % 12 || 12} giờ ${currentMinute} phút`;
       }
     }
+
 
     setInterval(updateRealtimeClock, 1000);
 
@@ -322,34 +325,54 @@
       total += temp;
       return total;
     }
+<!-- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa -->
+function parseTimeSpeech(text) {
+  text = text.toLowerCase().trim();
 
-    function parseTimeSpeech(text) {
-      text = text.toLowerCase();
-      let hour = null;
-      let minute = 0;
+  // 1. BẮT TRƯỜNG HỢP TRÌNH DUYỆT TRẢ VỀ DẠNG SỐ CÓ DẤU HAI CHẤM (VD: "7:15", "10:30", "2:05")
+  const colonMatch = text.match(/(\d{1,2})\s*:\s*(\d{1,2})/);
+  if (colonMatch) {
+    let hour = parseInt(colonMatch[1], 10);
+    let minute = parseInt(colonMatch[2], 10);
+    // Đổi hệ 24h sang 12h nếu trình duyệt tự hiểu chiều/tối (VD: 19:15 -> 7:15)
+    if (hour > 12) hour -= 12;
+    if (hour === 0) hour = 12;
+    return { hour, minute };
+  }
 
-      if (text.includes("rưỡi")) minute = 30;
+  // 2. XỬ LÝ DẠNG CHỮ HOẶC SỐ KÈM CHỮ "GIỜ" (VD: "bảy giờ mười lăm", "7 giờ 15", "2g18p")
+  text = text.replace(/h|g/g, " giờ ")
+             .replace(/phut/g, "phút")
+             .replace(/gio/g, "giờ");
 
-      const hourMatch = text.match(/(.*?)\s*giờ/);
-      if (hourMatch) {
-        let hourStr = hourMatch[1].trim();
-        let hourWords = hourStr.split(" ").slice(-2).join(" ");
-        hour = wordsToNumber(hourWords);
-      }
+  let hour = null;
+  let minute = 0;
 
-      if (!text.includes("rưỡi")) {
-        const minuteMatch = text.match(/giờ\s*(.*?)(?:\s*phút|$)/);
-        if (minuteMatch && minuteMatch[1]) {
-          let minStr = minuteMatch[1].trim();
-          if (minStr) minute = wordsToNumber(minStr);
-        }
-      }
+  if (text.includes("rưỡi")) minute = 30;
 
-      if (hour !== null && !isNaN(hour) && minute !== null && !isNaN(minute)) {
-        return { hour, minute };
-      }
-      return null;
+  const hourMatch = text.match(/(.*?)\s*giờ/);
+  if (hourMatch && hourMatch[1]) {
+    hour = parseVietnameseNumber(hourMatch[1]);
+  }
+
+  if (!text.includes("rưỡi")) {
+    const minuteMatch = text.match(/giờ\s*(.*?)(?:\s*phút|$)/);
+    if (minuteMatch && minuteMatch[1]) {
+      let parsedMin = parseVietnameseNumber(minuteMatch[1]);
+      if (parsedMin !== null) minute = parsedMin;
     }
+  }
+
+  if (hour !== null && !isNaN(hour)) {
+    if (hour > 12) hour -= 12;
+    if (hour === 0) hour = 12;
+    return { hour, minute };
+  }
+  return null;
+}
+
+
+
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
